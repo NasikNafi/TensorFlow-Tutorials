@@ -4,6 +4,15 @@
 
 Original author is [Magnus Erik Hvass Pedersen](http://www.hvass-labs.org)
 
+## What is Modified from Original One
+
+Exploration exploitation dilemma is an important issue in learning algorithms. This implementation of deep Q-learning incorporates a new approach to adaptive ε-greedy policy for better balancing between exploration and exploitation. Original implementation uses linearly decreasing ε. This new method is based on classic ε-greedy but it allows the value of ε to increase proportional to a predefined number of state transisions when the mean reward value goes through a certain reduction. I conducted experiments numerically comparing the two methods (existing one and new one) for the Breakout Atari Game environment. The adaptive ε-greedy method presents better performance as compared to the classic decreasing ε-greedy. More details of the implementation and outcomes can be found in the [Report-on-adaptive-epsilon-greedy.pdf](https://github.com/NasikNafi/TensorFlow-Tutorials/blob/master/Report-on-adaptive-epsilon-greedy.pdf) file.
+
+* One thing to be noted my current implementation is not fully compatible with the original checkpointing. So the training should be done in a single run. This work is done as a part of the CIS 730 - Artificial Intelligence graduate course. There is still many things that can be improved.  
+
+
+As I just modified the reinforcement learning part of the tutorial 16 I am keeping the original readme for convenience. Following sections are similar to the original readme which lists name of the tutorials, downloading, installation, license etc.   
+
 ## Introduction
 
 * These tutorials are intended for beginners in Deep Learning and TensorFlow.

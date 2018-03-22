@@ -167,6 +167,8 @@ import csv
 import argparse
 import download
 
+from random import *
+
 ########################################################################
 # File-paths are global variables for convenience so they don't
 # have to be passed around between all the objects.
@@ -176,7 +178,7 @@ import download
 
 # Default base-directory for the checkpoints and log-files.
 # The environment-name will be appended to this.
-checkpoint_base_dir = 'checkpoints_tutorial16/'
+checkpoint_base_dir = 'checkpoints_RL/'
 
 # Combination of base-dir and environment-name.
 checkpoint_dir = None
@@ -191,10 +193,10 @@ log_q_values_path = None
 def update_paths(env_name):
     """
     Update the path-names for the checkpoint-dir and log-files.
-    
+
     Call this after you have changed checkpoint_base_dir and
     before you create the Neural Network.
-    
+
     :param env_name:
         Name of the game-environment you will use in OpenAI Gym.
     """
@@ -268,11 +270,11 @@ class Log:
     def _write(self, count_episodes, count_states, msg):
         """
         Write a line to the log-file. This is only called by sub-classes.
-        
+
         :param count_episodes:
             Counter for the number of episodes processed during training.
 
-        :param count_states: 
+        :param count_states:
             Counter for the number of states processed during training.
 
         :param msg:
@@ -310,14 +312,14 @@ class LogReward(Log):
         # Super-class init.
         Log.__init__(self, file_path=log_reward_path)
 
-    def write(self, count_episodes, count_states, reward_episode, reward_mean):
+    def write(self, count_episodes, count_states, episode_epsilon, reward_episode, reward_mean):
         """
         Write the episode and mean reward to file.
-        
+
         :param count_episodes:
             Counter for the number of episodes processed during training.
 
-        :param count_states: 
+        :param count_states:
             Counter for the number of states processed during training.
 
         :param reward_episode:
@@ -327,7 +329,7 @@ class LogReward(Log):
             Mean reward for the last e.g. 30 episodes.
         """
 
-        msg = "{0:.1f}\t{1:.1f}".format(reward_episode, reward_mean)
+        msg = "{0:.2f}\t{1:.1f}\t{2:.1f}".format(episode_epsilon, reward_episode, reward_mean)
         self._write(count_episodes=count_episodes, count_states=count_states, msg=msg)
 
     def read(self):
@@ -367,7 +369,7 @@ class LogQValues(Log):
         :param count_episodes:
             Counter for the number of episodes processed during training.
 
-        :param count_states: 
+        :param count_states:
             Counter for the number of states processed during training.
 
         :param q_values:
@@ -478,7 +480,7 @@ class MotionTracer:
 
     This is needed because a single image-frame of the game environment
     is insufficient to determine the direction of moving objects.
-    
+
     The original DeepMind implementation used the last 4 image-frames
     of the game-environment to allow the Neural Network to learn how
     to detect motion. This implementation could make it a little easier
@@ -490,7 +492,7 @@ class MotionTracer:
 
     def __init__(self, image, decay=0.75):
         """
-        
+
         :param image:
             First image from the game-environment,
             used for resetting the motion detector.
@@ -576,12 +578,12 @@ class ReplayMemory:
 
     def __init__(self, size, num_actions, discount_factor=0.97):
         """
-        
+
         :param size:
             Capacity of the replay-memory. This is the number of states.
 
         :param num_actions:
-            Number of possible actions in the game-environment. 
+            Number of possible actions in the game-environment.
 
         :param discount_factor:
             Discount-factor used for updating Q-values.
@@ -642,16 +644,16 @@ class ReplayMemory:
     def add(self, state, q_values, action, reward, end_life, end_episode):
         """
         Add an observed state from the game-environment, along with the
-        estimated Q-values, action taken, observed reward, etc. 
-        
+        estimated Q-values, action taken, observed reward, etc.
+
         :param state:
             Current state of the game-environment.
             This is the output of the MotionTracer-class.
 
-        :param q_values: 
+        :param q_values:
             The estimated Q-values for the state.
 
-        :param action: 
+        :param action:
             The action taken by the agent in this state of the game.
 
         :param reward:
@@ -660,8 +662,8 @@ class ReplayMemory:
 
         :param end_life:
             Boolean whether the agent has lost a life in this state.
-         
-        :param end_episode: 
+
+        :param end_episode:
             Boolean whether the agent has lost all lives aka. game over
             aka. end of episode.
         """
@@ -687,7 +689,7 @@ class ReplayMemory:
     def update_all_q_values(self):
         """
         Update all Q-values in the replay-memory.
-        
+
         When states and Q-values are added to the replay-memory, the
         Q-values have been estimated by the Neural Network. But we now
         have more data available that we can use to improve the estimated
@@ -748,7 +750,7 @@ class ReplayMemory:
         estimate quite well because they have low estimation errors, and
         Q-values that are poorly estimated by the Neural Network because
         they have high estimation errors.
-        
+
         The reason for this balancing of Q-values with high and low estimation
         errors, is that if we train the Neural Network mostly on data with
         high estimation errors, then it will tend to forget what it already
@@ -818,7 +820,7 @@ class ReplayMemory:
         Iterator for all the states and Q-values in the replay-memory.
         It returns the indices for the beginning and end, as well as
         a progress-counter between 0.0 and 1.0.
-        
+
         This function is not currently being used except by the function
         estimate_all_q_values() below. These two functions are merely
         included to make it easier for you to experiment with the code
@@ -937,7 +939,7 @@ class LinearControlSignal:
 
     This is used to change e.g. the learning-rate for the optimizer
     of the Neural Network, as well as other parameters.
-    
+
     TensorFlow has functionality for doing this, but it uses the
     global_step counter inside the TensorFlow graph, while we
     want the control signals to use a state-counter for the
@@ -993,7 +995,7 @@ class EpsilonGreedy:
     The epsilon-greedy policy either takes a random action with
     probability epsilon, or it takes the action for the highest
     Q-value.
-    
+
     If epsilon is 1.0 then the actions are always random.
     If epsilon is 0.0 then the actions are always argmax for the Q-values.
 
@@ -1009,7 +1011,7 @@ class EpsilonGreedy:
                  start_value=1.0, end_value=0.1,
                  repeat=False):
         """
-        
+
         :param num_actions:
             Number of possible actions in the game-environment.
 
@@ -1019,7 +1021,7 @@ class EpsilonGreedy:
         :param num_iterations:
             Number of training iterations required to linearly
             decrease epsilon from start_value to end_value.
-            
+
         :param start_value:
             Starting value for linearly decreasing epsilon.
 
@@ -1035,12 +1037,16 @@ class EpsilonGreedy:
         # Store parameters.
         self.num_actions = num_actions
         self.epsilon_testing = epsilon_testing
+        self.epsilon_AEG = 0.5
 
         # Create a control signal for linearly decreasing epsilon.
         self.epsilon_linear = LinearControlSignal(num_iterations=num_iterations,
                                                   start_value=start_value,
                                                   end_value=end_value,
                                                   repeat=repeat)
+
+    def set_epsilon(self, epsilon):
+        self.epsilon_AEG = epsilon
 
     def get_epsilon(self, iteration, training):
         """
@@ -1059,11 +1065,11 @@ class EpsilonGreedy:
     def get_action(self, q_values, iteration, training):
         """
         Use the epsilon-greedy policy to select an action.
-        
+
         :param q_values:
             These are the Q-values that are estimated by the Neural Network
             for the current state of the game-environment.
-         
+
         :param iteration:
             This is an iteration counter. Here we use the number of states
             that has been processed in the game-environment.
@@ -1075,7 +1081,10 @@ class EpsilonGreedy:
         :return:
             action (integer), epsilon (float)
         """
-
+        # if iteration > 1e6:
+        #     epsilon = self.epsilon_AEG
+        # else:
+        #     epsilon = self.get_epsilon(iteration=iteration, training=training)
         epsilon = self.get_epsilon(iteration=iteration, training=training)
 
         # With probability epsilon.
@@ -1105,7 +1114,7 @@ class NeuralNetwork:
         :param num_actions:
             Number of discrete actions for the game-environment.
 
-        :param replay_memory: 
+        :param replay_memory:
             Object-instance of the ReplayMemory-class.
 
         :param use_pretty_tensor:
@@ -1122,6 +1131,7 @@ class NeuralNetwork:
 
         # Path for saving/restoring checkpoints.
         self.checkpoint_path = os.path.join(checkpoint_dir, "checkpoint")
+        # self.checkpoint_path = os.path.join(os.getcwd(), checkpoint_dir)
 
         # Placeholder variable for inputting states into the Neural Network.
         # A state is a multi-dimensional array holding image-frames from
@@ -1326,6 +1336,8 @@ class NeuralNetwork:
             print("Trying to restore last checkpoint ...")
 
             # Use TensorFlow to find the latest checkpoint - if any.
+            # Nafi Modified this line
+            # last_chk_path = tf.train.latest_checkpoint(checkpoint_dir=self.checkpoint_path)
             last_chk_path = tf.train.latest_checkpoint(checkpoint_dir=checkpoint_dir)
 
             # Try and load the data in the checkpoint.
@@ -1342,7 +1354,7 @@ class NeuralNetwork:
 
     def save_checkpoint(self, current_iteration):
         """Save all variables of the TensorFlow graph to a checkpoint."""
-
+        # Nafi changed the line save_path=self.checkpoint_path
         self.saver.save(self.session,
                         save_path=self.checkpoint_path,
                         global_step=current_iteration)
@@ -1360,7 +1372,7 @@ class NeuralNetwork:
         The input to this function is an array of such states which allows
         for batch-processing of the states. So the input is a 4-dim
         array with shape: [batch, height, width, state_channels].
-        
+
         The output of this function is an array of Q-value-arrays.
         There is a Q-value for each possible action in the game-environment.
         So the output is a 2-dim array with shape: [batch, num_actions]
@@ -1471,6 +1483,10 @@ class NeuralNetwork:
         # Print newline.
         print()
 
+    # added by Nafi
+    def get_loss(self):
+        return self.loss
+
     def get_weights_variable(self, layer_name):
         """
         Return the variable inside the TensorFlow graph for the weights
@@ -1570,7 +1586,7 @@ class Agent:
         """
         Create an object-instance. This also creates a new object for the
         Replay Memory and the Neural Network.
-        
+
         Replay Memory will only be allocated if training==True.
 
         :param env_name:
@@ -1580,7 +1596,7 @@ class Agent:
         :param training:
             Boolean whether to train the agent and Neural Network (True),
             or test the agent by playing a number of episodes of the game (False).
-        
+
         :param render:
             Boolean whether to render the game-images to screen during testing.
 
@@ -1593,7 +1609,6 @@ class Agent:
 
         # The number of possible actions that the agent may take in every step.
         self.num_actions = self.env.action_space.n
-
         # Whether we are training (True) or testing (False).
         self.training = training
 
@@ -1701,8 +1716,8 @@ class Agent:
         """
         Run the game-environment and use the Neural Network to decide
         which actions to take in each step through Q-value estimates.
-        
-        :param num_episodes: 
+
+        :param num_episodes:
             Number of episodes to process in the game-environment.
             If None then continue forever. This is useful during training
             where you might want to stop the training using Ctrl-C instead.
@@ -1715,6 +1730,8 @@ class Agent:
         # This is stored in the TensorFlow graph so it can be
         # saved and reloaded along with the checkpoint.
         count_states = self.model.get_count_states()
+        count_states_for_AEG = count_states
+        prev_count_states_for_AEG = count_states
 
         # Counter for the number of episodes we have processed.
         count_episodes = self.model.get_count_episodes()
@@ -1727,6 +1744,11 @@ class Agent:
             # continued from a checkpoint. Take this into account
             # when determining the number of iterations to perform.
             num_episodes += count_episodes
+
+        #added by Nafi
+        episode_count_for_AEG = 1
+        reward_mean_last_100_prev_AEG = 0.1
+        save_checkpoint_count = 0
 
         while count_episodes <= num_episodes:
             if end_episode:
@@ -1763,8 +1785,9 @@ class Agent:
 
             # Determine the action that the agent must take in the game-environment.
             # The epsilon is just used for printing further below.
+            # changed by Nafi
             action, epsilon = self.epsilon_greedy.get_action(q_values=q_values,
-                                                             iteration=count_states,
+                                                             iteration=count_states_for_AEG,
                                                              training=self.training)
 
             # Take a step in the game-environment using the given action.
@@ -1786,7 +1809,11 @@ class Agent:
             num_lives = num_lives_new
 
             # Increase the counter for the number of states that have been processed.
+            # changed by Nafi
+            temp_state_count = count_states
             count_states = self.model.increase_count_states()
+            count_states_for_AEG = count_states_for_AEG + (count_states - temp_state_count)
+
 
             if not self.training and self.render:
                 # Render the game-environment to screen.
@@ -1845,19 +1872,23 @@ class Agent:
             if end_episode:
                 # Add the episode's reward to a list for calculating statistics.
                 self.episode_rewards.append(reward_episode)
+                # Nafi
+                # print("Q-values:", self.replay_memory.q_values)
+                # print("Loss-values:", self.model.get_loss())
 
-            # Mean reward of the last 30 episodes.
+            # Mean reward of the last 100 episodes.
             if len(self.episode_rewards) == 0:
                 # The list of rewards is empty.
                 reward_mean = 0.0
             else:
-                reward_mean = np.mean(self.episode_rewards[-30:])
+                reward_mean = np.mean(self.episode_rewards[-100:])
 
             if self.training and end_episode:
                 # Log reward to file.
                 if self.use_logging:
                     self.log_reward.write(count_episodes=count_episodes,
                                           count_states=count_states,
+                                          episode_epsilon = epsilon,
                                           reward_episode=reward_episode,
                                           reward_mean=reward_mean)
 
@@ -1865,6 +1896,34 @@ class Agent:
                 msg = "{0:4}:{1}\t Epsilon: {2:4.2f}\t Reward: {3:.1f}\t Episode Mean: {4:.1f}"
                 print(msg.format(count_episodes, count_states, epsilon,
                                  reward_episode, reward_mean))
+
+
+                #added by Nafi for AEG
+                if episode_count_for_AEG == 100:
+                    if len(self.episode_rewards) == 0:
+                        # The list of rewards is empty.
+                        reward_mean_last_100_current = 0.0
+                    else:
+                        reward_mean_last_100_current = np.mean(self.episode_rewards[-100:])
+                    print("Prev Reward mean: ", reward_mean_last_100_prev_AEG, " Current Reward mean: ", reward_mean_last_100_current)
+                    episode_count_for_AEG = 0
+                    reward_reduction = (reward_mean_last_100_prev_AEG - reward_mean_last_100_current) / reward_mean_last_100_prev_AEG
+                    if (reward_reduction > 0.1):
+                        # change epsilon greedy adaptively
+                        print("Inside AEG")
+                        print("State Count : ", count_states_for_AEG, "Changed State Count : ", prev_count_states_for_AEG)
+                        print("")
+                        state_count_diff = count_states_for_AEG - prev_count_states_for_AEG
+                        if count_states_for_AEG > 1e6:
+                            epsilon_new = epsilon + ((0.9/1e6) * state_count_diff)
+                            count_states_for_AEG = ((1 - epsilon_new) / 0.9) * 1e6
+                        else:
+                            count_states_for_AEG = prev_count_states_for_AEG
+
+                    reward_mean_last_100_prev_AEG = reward_mean_last_100_current
+                    prev_count_states_for_AEG = count_states_for_AEG
+                episode_count_for_AEG += 1
+
             elif not self.training and (reward != 0.0 or end_life or end_episode):
                 # Print Q-values and reward to screen.
                 msg = "{0:4}:{1}\tQ-min: {2:5.3f}\tQ-max: {3:5.3f}\tLives: {4}\tReward: {5:.1f}\tEpisode Mean: {6:.1f}"
